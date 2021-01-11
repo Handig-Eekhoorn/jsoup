@@ -1,12 +1,15 @@
 package org.jsoup.nodes;
 
-import org.jsoup.internal.StringUtil;
+import org.jsoup.helper.DataUtil;
 import org.jsoup.helper.Validate;
+import org.jsoup.internal.StringUtil;
 import org.jsoup.parser.ParseSettings;
 import org.jsoup.parser.Parser;
 import org.jsoup.parser.Tag;
 import org.jsoup.select.Elements;
+import org.jsoup.select.Evaluator;
 
+import javax.annotation.Nullable;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.util.ArrayList;
@@ -32,6 +35,7 @@ public class Document extends Element {
     public Document(String baseUri) {
         super(Tag.valueOf("#root", ParseSettings.htmlDefault), baseUri);
         this.location = baseUri;
+        this.parser = Parser.htmlParser(); // default, but overridable
     }
 
     /**
@@ -64,7 +68,7 @@ public class Document extends Element {
      * Returns this Document's doctype.
      * @return document type, or null if not set
      */
-    public DocumentType documentType() {
+    public @Nullable DocumentType documentType() {
         for (Node node : childNodes) {
             if (node instanceof DocumentType)
                 return (DocumentType) node;
@@ -74,21 +78,52 @@ public class Document extends Element {
         return null;
         // todo - add a set document type?
     }
-    
+
     /**
-     Accessor to the document's {@code head} element.
-     @return {@code head}
+     Find the root HTML element, or create it if it doesn't exist.
+     @return the root HTML element.
      */
-    public Element head() {
-        return findFirstElementByTagName("head", this);
+    private Element htmlEl() {
+        for (Element el: childElementsList()) {
+            if (el.normalName().equals("html"))
+                return el;
+        }
+        return appendElement("html");
     }
 
     /**
-     Accessor to the document's {@code body} element.
-     @return {@code body}
+     Get this document's {@code head} element.
+     <p>
+     As a side-effect, if this Document does not already have a HTML structure, it will be created. If you do not want
+     that, use {@code #selectFirst("head")} instead.
+
+     @return {@code head} element.
+     */
+    public Element head() {
+        Element html = htmlEl();
+        for (Element el: html.childElementsList()) {
+            if (el.normalName().equals("head"))
+                return el;
+        }
+        return html.prependElement("head");
+    }
+
+    /**
+     Get this document's {@code <body>} or {@code <frameset>} element.
+     <p>
+     As a <b>side-effect</b>, if this Document does not already have a HTML structure, it will be created with a {@code
+    <body>} element. If you do not want that, use {@code #selectFirst("body")} instead.
+
+     @return {@code body} element for documents with a {@code <body>}, a new {@code <body>} element if the document
+     had no contents, or the outermost {@code <frameset> element} for frameset documents.
      */
     public Element body() {
-        return findFirstElementByTagName("body", this);
+        Element html = htmlEl();
+        for (Element el: html.childElementsList()) {
+            if ("body".equals(el.normalName()) || "frameset".equals(el.normalName()))
+                return el;
+        }
+        return html.appendElement("body");
     }
 
     /**
@@ -97,9 +132,10 @@ public class Document extends Element {
      */
     public String title() {
         // title is a preserve whitespace tag (for document output), but normalised here
-        Element titleEl = getElementsByTag("title").first();
+        Element titleEl = head().selectFirst(titleEval);
         return titleEl != null ? StringUtil.normaliseWhitespace(titleEl.text()).trim() : "";
     }
+    private static final Evaluator titleEval = new Evaluator.Tag("title");
 
     /**
      Set the document's {@code title} element. Updates the existing element, or adds {@code title} to {@code head} if
@@ -108,12 +144,10 @@ public class Document extends Element {
      */
     public void title(String title) {
         Validate.notNull(title);
-        Element titleEl = getElementsByTag("title").first();
-        if (titleEl == null) { // add to head
-            head().appendElement("title").text(title);
-        } else {
-            titleEl.text(title);
-        }
+        Element titleEl = head().selectFirst(titleEval);
+        if (titleEl == null) // add to head
+            titleEl = head().appendElement("title");
+        titleEl.text(title);
     }
 
     /**
@@ -131,17 +165,13 @@ public class Document extends Element {
      @return this document after normalisation
      */
     public Document normalise() {
-        Element htmlEl = findFirstElementByTagName("html", this);
-        if (htmlEl == null)
-            htmlEl = appendElement("html");
-        if (head() == null)
-            htmlEl.prependElement("head");
-        if (body() == null)
-            htmlEl.appendElement("body");
+        Element htmlEl = htmlEl(); // these all create if not found
+        Element head = head();
+        body();
 
         // pull text nodes out of root, html, and head els, and push into body. non-text nodes are already taken care
         // of. do in inverse order to maintain text order.
-        normaliseTextNodes(head());
+        normaliseTextNodes(head);
         normaliseTextNodes(htmlEl);
         normaliseTextNodes(this);
 
@@ -188,24 +218,9 @@ public class Document extends Element {
                 master.appendChild(dupe);
         }
         // ensure parented by <html>
-        if (!master.parent().equals(htmlEl)) {
+        if (master.parent() != null && !master.parent().equals(htmlEl)) {
             htmlEl.appendChild(master); // includes remove()            
         }
-    }
-
-    // fast method to get first by tag name, used for html, head, body finders
-    private Element findFirstElementByTagName(String tag, Node node) {
-        if (node.nodeName().equals(tag))
-            return (Element) node;
-        else {
-            int size = node.childNodeSize();
-            for (int i = 0; i < size; i++) {
-                Element found = findFirstElementByTagName(tag, node.childNode(i));
-                if (found != null)
-                    return found;
-            }
-        }
-        return null;
     }
 
     @Override
@@ -331,46 +346,31 @@ public class Document extends Element {
             OutputSettings.Syntax syntax = outputSettings().syntax();
 
             if (syntax == OutputSettings.Syntax.html) {
-                Element metaCharset = select("meta[charset]").first();
-
+                Element metaCharset = selectFirst("meta[charset]");
                 if (metaCharset != null) {
                     metaCharset.attr("charset", charset().displayName());
                 } else {
-                    Element head = head();
-
-                    if (head != null) {
-                        head.appendElement("meta").attr("charset", charset().displayName());
-                    }
+                    head().appendElement("meta").attr("charset", charset().displayName());
                 }
-
-                // Remove obsolete elements
-                select("meta[name=charset]").remove();
+                select("meta[name=charset]").remove(); // Remove obsolete elements
             } else if (syntax == OutputSettings.Syntax.xml) {
-                Node node = childNodes().get(0);
-
+                Node node = ensureChildNodes().get(0);
                 if (node instanceof XmlDeclaration) {
                     XmlDeclaration decl = (XmlDeclaration) node;
-
                     if (decl.name().equals("xml")) {
                         decl.attr("encoding", charset().displayName());
-
-                        final String version = decl.attr("version");
-
-                        if (version != null) {
+                        if (decl.hasAttr("version"))
                             decl.attr("version", "1.0");
-                        }
                     } else {
                         decl = new XmlDeclaration("xml", false);
                         decl.attr("version", "1.0");
                         decl.attr("encoding", charset().displayName());
-
                         prependChild(decl);
                     }
                 } else {
                     XmlDeclaration decl = new XmlDeclaration("xml", false);
                     decl.attr("version", "1.0");
                     decl.attr("encoding", charset().displayName());
-
                     prependChild(decl);
                 }
             }
@@ -388,18 +388,16 @@ public class Document extends Element {
         public enum Syntax {html, xml}
 
         private Entities.EscapeMode escapeMode = Entities.EscapeMode.base;
-        private Charset charset;
-        private ThreadLocal<CharsetEncoder> encoderThreadLocal = new ThreadLocal<>(); // initialized by start of OuterHtmlVisitor
-        Entities.CoreCharset coreCharset; // fast encoders for ascii and utf8
+        private Charset charset = DataUtil.UTF_8;
+        private final ThreadLocal<CharsetEncoder> encoderThreadLocal = new ThreadLocal<>(); // initialized by start of OuterHtmlVisitor
+        @Nullable Entities.CoreCharset coreCharset; // fast encoders for ascii and utf8
 
         private boolean prettyPrint = true;
         private boolean outline = false;
         private int indentAmount = 1;
         private Syntax syntax = Syntax.html;
 
-        public OutputSettings() {
-            charset(Charset.forName("UTF8"));
-        }
+        public OutputSettings() {}
         
         /**
          * Get the document's current HTML escape mode: <code>base</code>, which provides a limited set of named HTML

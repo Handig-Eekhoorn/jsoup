@@ -7,14 +7,14 @@
 * scrape and [parse](https://jsoup.org/cookbook/input/parse-document-from-string) HTML from a URL, file, or string
 * find and [extract data](https://jsoup.org/cookbook/extracting-data/selector-syntax), using DOM traversal or CSS selectors
 * manipulate the [HTML elements](https://jsoup.org/cookbook/modifying-data/set-html), attributes, and text
-* [clean](https://jsoup.org/cookbook/cleaning-html/whitelist-sanitizer) user-submitted content against a safe white-list, to prevent XSS attacks
+* [clean](https://jsoup.org/cookbook/cleaning-html/safelist-sanitizer) user-submitted content against a safe-list, to prevent XSS attacks
 * output tidy HTML
 
 jsoup is designed to deal with all varieties of HTML found in the wild; from pristine and validating, to invalid tag-soup; jsoup will create a sensible parse tree.
 
 See [**jsoup.org**](https://jsoup.org/) for downloads and the full [API documentation](https://jsoup.org/apidocs/).
 
-[![Build Status](https://travis-ci.org/jhy/jsoup.svg?branch=master)](https://travis-ci.org/jhy/jsoup)
+[![Build Status](https://github.com/jhy/jsoup/workflows/Build/badge.svg)](https://github.com/jhy/jsoup/actions?query=workflow%3ABuild)
 
 ## Example
 Fetch the [Wikipedia](https://en.wikipedia.org/wiki/Main_Page) homepage, parse it to a [DOM](https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Introduction), and select the headlines from the *In the News* section into a list of [Elements](https://jsoup.org/apidocs/index.html?org/jsoup/select/Elements.html):
@@ -31,7 +31,7 @@ for (Element headline : newsHeadlines) {
 [Online sample](https://try.jsoup.org/~LGB7rk_atM2roavV0d-czMt3J_g), [full source](https://github.com/jhy/jsoup/blob/master/src/main/java/org/jsoup/examples/Wikipedia.java).
 
 ## Open source
-jsoup is an open source project distributed under the liberal [MIT license](https://jsoup.org/license). The source code is available at [GitHub](https://github.com/jhy/jsoup/tree/master/src/main/java/org/jsoup).
+jsoup is an open source project distributed under the liberal [MIT license](https://jsoup.org/license). The source code is available at [GitHub](https://github.com/jhy/jsoup).
 
 ## Getting started
 1. [Download](https://jsoup.org/download) the latest jsoup jar (or add it to your Maven/Gradle build)

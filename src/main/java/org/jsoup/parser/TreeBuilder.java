@@ -6,6 +6,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,11 @@ abstract class TreeBuilder {
     private Token.EndTag end  = new Token.EndTag();
     abstract ParseSettings defaultSettings();
 
+    @ParametersAreNonnullByDefault
     protected void initialiseParse(Reader input, String baseUri, Parser parser) {
         Validate.notNull(input, "String input must not be null");
         Validate.notNull(baseUri, "BaseURI must not be null");
+        Validate.notNull(parser);
 
         doc = new Document(baseUri);
         doc.parser(parser);
@@ -42,6 +45,7 @@ abstract class TreeBuilder {
         this.baseUri = baseUri;
     }
 
+    @ParametersAreNonnullByDefault
     Document parse(Reader input, String baseUri, Parser parser) {
         initialiseParse(input, baseUri, parser);
         runParser();
@@ -104,14 +108,21 @@ abstract class TreeBuilder {
         return size > 0 ? stack.get(size-1) : null;
     }
 
-
     /**
-     * If the parser is tracking errors, and an error at the current position.
+     * If the parser is tracking errors, add an error at the current position.
      * @param msg error message
      */
     protected void error(String msg) {
         ParseErrorList errors = parser.getErrors();
         if (errors.canAddError())
             errors.add(new ParseError(reader.pos(), msg));
+    }
+
+    /**
+     (An internal method, visible for Element. For HTML parse, signals that script and style text should be treated as
+     Data Nodes).
+     */
+    protected boolean isContentForTagData(String normalName) {
+        return false;
     }
 }

@@ -10,6 +10,7 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.nodes.XmlDeclaration;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
@@ -26,11 +27,13 @@ public class XmlTreeBuilder extends TreeBuilder {
         return ParseSettings.preserveCase;
     }
 
-    @Override
+    @Override @ParametersAreNonnullByDefault
     protected void initialiseParse(Reader input, String baseUri, Parser parser) {
         super.initialiseParse(input, baseUri, parser);
         stack.add(doc); // place the document onto the stack. differs from HtmlTreeBuilder (not on stack)
-        doc.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
+        doc.outputSettings()
+            .syntax(Document.OutputSettings.Syntax.xml)
+            .prettyPrint(false); // as XML, we don't understand what whitespace is significant or not
     }
 
     Document parse(Reader input, String baseUri) {
@@ -75,7 +78,7 @@ public class XmlTreeBuilder extends TreeBuilder {
     Element insert(Token.StartTag startTag) {
         Tag tag = Tag.valueOf(startTag.name(), settings);
         // todo: wonder if for xml parsing, should treat all tags as unknown? because it's not html.
-        if (startTag.attributes != null)
+        if (startTag.hasAttributes())
             startTag.attributes.deduplicate(settings);
 
         Element el = new Element(tag, null, settings.normalizeAttributes(startTag.attributes));

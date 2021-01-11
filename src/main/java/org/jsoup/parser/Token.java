@@ -123,6 +123,14 @@ abstract class Token {
             pendingAttributeValueS = null;
         }
 
+        final boolean hasAttributes() {
+            return attributes != null;
+        }
+
+        final boolean hasAttribute(String key) {
+            return attributes != null && attributes.hasKey(key);
+        }
+
         final void finaliseTag() {
             // finalises for emit
             if (pendingAttributeName != null) {
@@ -141,6 +149,10 @@ abstract class Token {
             return normalName;
         }
 
+        final String toStringName() {
+            return tagName != null ? tagName : "[unset]";
+        }
+
         final Tag name(String name) {
             tagName = name;
             normalName = lowerCase(name);
@@ -149,12 +161,6 @@ abstract class Token {
 
         final boolean isSelfClosing() {
             return selfClosing;
-        }
-
-        final Attributes getAttributes() {
-            if (attributes == null)
-                attributes = new Attributes();
-            return attributes;
         }
 
         // these appenders are rarely hit in not null state-- caused by null chars.
@@ -213,6 +219,9 @@ abstract class Token {
                 pendingAttributeValueS = null;
             }
         }
+
+        @Override
+        abstract public String toString();
     }
 
     final static class StartTag extends Tag {
@@ -237,10 +246,10 @@ abstract class Token {
 
         @Override
         public String toString() {
-            if (attributes != null && attributes.size() > 0)
-                return "<" + name() + " " + attributes.toString() + ">";
+            if (hasAttributes() && attributes.size() > 0)
+                return "<" + toStringName() + " " + attributes.toString() + ">";
             else
-                return "<" + name() + ">";
+                return "<" + toStringName() + ">";
         }
     }
 
@@ -252,7 +261,7 @@ abstract class Token {
 
         @Override
         public String toString() {
-            return "</" + (tagName != null ? tagName : "(unset)") + ">";
+            return "</" + toStringName() + ">";
         }
     }
 
@@ -300,7 +309,6 @@ abstract class Token {
                 dataS = null;
             }
         }
-
 
         @Override
         public String toString() {
@@ -358,6 +366,11 @@ abstract class Token {
         @Override
         Token reset() {
             return this;
+        }
+
+        @Override
+        public String toString() {
+            return "";
         }
     }
 

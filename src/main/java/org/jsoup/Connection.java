@@ -3,6 +3,7 @@ package org.jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.parser.Parser;
 
+import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A Connection provides a convenient interface to fetch content from the web, and parse them into Documents.
+ * The Connection interface is a convenient HTTP client to fetch content from the web, and parse them into Documents.
  * <p>
  * To get a new Connection, use {@link org.jsoup.Jsoup#connect(String)}. Connections contain {@link Connection.Request}
  * and {@link Connection.Response} objects. The request objects are reusable as prototype requests.
@@ -25,6 +26,7 @@ import java.util.Map;
  * executed.
  * </p>
  */
+@SuppressWarnings("unused")
 public interface Connection {
 
     /**
@@ -63,11 +65,11 @@ public interface Connection {
     Connection url(String url);
 
     /**
-     * Set the proxy to use for this request. Set to <code>null</code> to disable.
+     * Set the proxy to use for this request. Set to <code>null</code> to disable a previously set proxy.
      * @param proxy proxy to use
      * @return this Connection, for chaining
      */
-    Connection proxy(Proxy proxy);
+    Connection proxy(@Nullable Proxy proxy);
 
     /**
      * Set the HTTP proxy to use for this request.
@@ -217,7 +219,7 @@ public interface Connection {
      * @param key the data key
      * @return null if not set
      */
-    KeyVal data(String key);
+    @Nullable KeyVal data(String key);
 
     /**
      * Set a POST (or PUT) request body. Useful when a server expects a plain request body, not a set for URL
@@ -325,8 +327,9 @@ public interface Connection {
     Connection request(Request request);
 
     /**
-     * Get the response, once the request has been executed
+     * Get the response, once the request has been executed.
      * @return response
+     * @throws IllegalArgumentException if called before the response has been executed.
      */
     Response response();
 
@@ -341,11 +344,12 @@ public interface Connection {
      * Common methods for Requests and Responses
      * @param <T> Type of Base, either Request or Response
      */
-    interface Base<T extends Base> {
-
+    @SuppressWarnings("UnusedReturnValue")
+    interface Base<T extends Base<T>> {
         /**
-         * Get the URL
+         * Get the URL of this Request or Response. For redirected responses, this will be the final destination URL.
          * @return URL
+         * @throws IllegalArgumentException if called on a Request that was created without a URL.
          */
         URL url();
 
@@ -357,7 +361,7 @@ public interface Connection {
         T url(URL url);
 
         /**
-         * Get the request method
+         * Get the request method, which defaults to <code>GET</code>
          * @return method
          */
         Method method();
@@ -380,7 +384,7 @@ public interface Connection {
          * @see #hasHeader(String)
          * @see #cookie(String)
          */
-        String header(String name);
+        @Nullable String header(String name);
 
         /**
          * Get the values of a header.
@@ -455,7 +459,7 @@ public interface Connection {
          * @param name name of cookie to retrieve.
          * @return value of cookie, or null if not set
          */
-        String cookie(String name);
+        @Nullable String cookie(String name);
 
         /**
          * Set a cookie in this request/response.
@@ -489,19 +493,20 @@ public interface Connection {
     /**
      * Represents a HTTP request.
      */
+    @SuppressWarnings("UnusedReturnValue")
     interface Request extends Base<Request> {
         /**
          * Get the proxy used for this request.
          * @return the proxy; <code>null</code> if not enabled.
          */
-        Proxy proxy();
+        @Nullable Proxy proxy();
 
         /**
          * Update the proxy for this request.
          * @param proxy the proxy ot use; <code>null</code> to disable.
          * @return this Request, for chaining
          */
-        Request proxy(Proxy proxy);
+        Request proxy(@Nullable Proxy proxy);
 
         /**
          * Set the HTTP proxy to use for this request.
@@ -582,7 +587,7 @@ public interface Connection {
          * Get the current custom SSL socket factory, if any.
          * @return custom SSL socket factory if set, null otherwise
          */
-        SSLSocketFactory sslSocketFactory();
+        @Nullable SSLSocketFactory sslSocketFactory();
 
         /**
          * Set a custom SSL socket factory.
@@ -611,15 +616,16 @@ public interface Connection {
          * .header("Content-Type", "application/json")
          * .post();</pre></code>
          * If any data key/vals are supplied, they will be sent as URL query params.
+         * @param body to use as the request body. Set to null to clear a previously set body.
          * @return this Request, for chaining
          */
-        Request requestBody(String body);
+        Request requestBody(@Nullable String body);
 
         /**
          * Get the current request body.
          * @return null if not set.
          */
-        String requestBody();
+        @Nullable String requestBody();
 
         /**
          * Specify the parser to use when parsing the document.
@@ -668,9 +674,9 @@ public interface Connection {
 
         /**
          * Get the character set name of the response, derived from the content-type header.
-         * @return character set name
+         * @return character set name if set, <b>null</b> if not
          */
-        String charset();
+        @Nullable String charset();
 
         /**
          * Set / override the response character set. When the document body is parsed it will be with this charset.
@@ -681,9 +687,9 @@ public interface Connection {
 
         /**
          * Get the response content type (e.g. "text/html");
-         * @return the response content type
+         * @return the response content type, or <b>null</b> if one was not set
          */
-        String contentType();
+        @Nullable String contentType();
 
         /**
          * Read and parse the body of the response as a Document. If you intend to parse the same response multiple
@@ -765,7 +771,7 @@ public interface Connection {
          * Get the input stream associated with this keyval, if any
          * @return input stream if set, or null
          */
-        InputStream inputStream();
+        @Nullable InputStream inputStream();
 
         /**
          * Does this keyval have an input stream?
@@ -786,6 +792,6 @@ public interface Connection {
          * Get the current Content Type, or {@code null} if not set.
          * @return the current Content Type.
          */
-        String contentType();
+        @Nullable String contentType();
     }
 }

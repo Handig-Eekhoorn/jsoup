@@ -12,6 +12,7 @@ import org.jsoup.nodes.XmlDeclaration;
 import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 
+import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.CharArrayReader;
 import java.io.File;
@@ -37,7 +38,8 @@ import java.util.zip.GZIPInputStream;
  */
 public final class DataUtil {
     private static final Pattern charsetPattern = Pattern.compile("(?i)\\bcharset=\\s*(?:[\"'])?([^\\s,;\"']*)");
-    static final String defaultCharset = "UTF-8"; // used if not found in header or meta charset
+    public static final Charset UTF_8 = Charset.forName("UTF-8"); // Don't use StandardCharsets, as those only appear in Android API 19, and we target 10.
+    static final String defaultCharsetName = UTF_8.name(); // used if not found in header or meta charset
     private static final int firstReadBufferSize = 1024 * 5;
     static final int bufferSize = 1024 * 32;
     private static final char[] mimeBoundaryChars =
@@ -108,12 +110,12 @@ public final class DataUtil {
         }
     }
 
-    static Document parseInputStream(InputStream input, String charsetName, String baseUri, Parser parser) throws IOException  {
+    static Document parseInputStream(@Nullable InputStream input, @Nullable String charsetName, String baseUri, Parser parser) throws IOException  {
         if (input == null) // empty body
             return new Document(baseUri);
         input = ConstrainableInputStream.wrap(input, bufferSize, 0);
 
-        Document doc = null;
+        @Nullable Document doc = null;
 
         // read the start of the stream and look for a BOM or meta charset
         input.mark(bufferSize);
@@ -128,9 +130,9 @@ public final class DataUtil {
 
         if (charsetName == null) { // determine from meta. safe first parse as UTF-8
             try {
-                CharBuffer defaultDecoded = Charset.forName(defaultCharset).decode(firstBytes);
+                CharBuffer defaultDecoded = UTF_8.decode(firstBytes);
                 if (defaultDecoded.hasArray())
-                    doc = parser.parseInput(new CharArrayReader(defaultDecoded.array(), 0, defaultDecoded.limit()), baseUri);
+                    doc = parser.parseInput(new CharArrayReader(defaultDecoded.array(), defaultDecoded.arrayOffset(), defaultDecoded.limit()), baseUri);
                 else
                     doc = parser.parseInput(defaultDecoded.toString(), baseUri);
             } catch (UncheckedIOException e) {
@@ -166,7 +168,7 @@ public final class DataUtil {
                 }
             }
             foundCharset = validateCharset(foundCharset);
-            if (foundCharset != null && !foundCharset.equalsIgnoreCase(defaultCharset)) { // need to re-decode. (case insensitive check here to match how validate works)
+            if (foundCharset != null && !foundCharset.equalsIgnoreCase(defaultCharsetName)) { // need to re-decode. (case insensitive check here to match how validate works)
                 foundCharset = foundCharset.trim().replaceAll("[\"']", "");
                 charsetName = foundCharset;
                 doc = null;
@@ -178,7 +180,7 @@ public final class DataUtil {
         }
         if (doc == null) {
             if (charsetName == null)
-                charsetName = defaultCharset;
+                charsetName = defaultCharsetName;
             BufferedReader reader = new BufferedReader(new InputStreamReader(input, charsetName), bufferSize);
             if (bomCharset != null && bomCharset.offset) { // creating the buffered reader ignores the input pos, so must skip here
                 long skipped = reader.skip(1);
@@ -190,11 +192,11 @@ public final class DataUtil {
                 // io exception when parsing (not seen before because reading the stream as we go)
                 throw e.ioException();
             }
-            Charset charset = Charset.forName(charsetName);
+            Charset charset = charsetName.equals(defaultCharsetName) ? UTF_8 : Charset.forName(charsetName);
             doc.outputSettings().charset(charset);
             if (!charset.canEncode()) {
                 // some charsets can read but not encode; switch to an encodable charset and update the meta el
-                doc.charset(Charset.forName(defaultCharset));
+                doc.charset(UTF_8);
             }
         }
         input.close();
@@ -225,7 +227,7 @@ public final class DataUtil {
      * @param contentType e.g. "text/html; charset=EUC-JP"
      * @return "EUC-JP", or null if not found. Charset is trimmed and uppercased.
      */
-    static String getCharsetFromContentType(String contentType) {
+    static @Nullable String getCharsetFromContentType(@Nullable String contentType) {
         if (contentType == null) return null;
         Matcher m = charsetPattern.matcher(contentType);
         if (m.find()) {
@@ -236,7 +238,7 @@ public final class DataUtil {
         return null;
     }
 
-    private static String validateCharset(String cs) {
+    private @Nullable static String validateCharset(@Nullable String cs) {
         if (cs == null || cs.length() == 0) return null;
         cs = cs.trim().replaceAll("[\"']", "");
         try {
@@ -261,7 +263,7 @@ public final class DataUtil {
         return StringUtil.releaseBuilder(mime);
     }
 
-    private static BomCharset detectCharsetFromBom(final ByteBuffer byteData) {
+    private static @Nullable BomCharset detectCharsetFromBom(final ByteBuffer byteData) {
         final Buffer buffer = byteData; // .mark and rewind used to return Buffer, now ByteBuffer, so cast for backward compat
         buffer.mark();
         byte[] bom = new byte[4];

@@ -5,6 +5,8 @@ import org.jsoup.TextUtil;
 import org.jsoup.integration.ParseTest;
 import org.jsoup.nodes.Document.OutputSettings;
 import org.jsoup.nodes.Document.OutputSettings.Syntax;
+import org.jsoup.parser.ParseSettings;
+import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -73,6 +75,34 @@ public class DocumentTest {
     @Test public void testNormalisesStructure() {
         Document doc = Jsoup.parse("<html><head><script>one</script><noscript><p>two</p></noscript></head><body><p>three</p></body><p>four</p></html>");
         assertEquals("<html><head><script>one</script><noscript>&lt;p&gt;two</noscript></head><body><p>three</p><p>four</p></body></html>", TextUtil.stripNewlines(doc.html()));
+    }
+
+    @Test public void accessorsWillNormalizeStructure() {
+        Document doc = new Document("");
+        assertEquals("", doc.html());
+
+        Element body = doc.body();
+        assertEquals("body", body.tagName());
+        Element head = doc.head();
+        assertEquals("head", head.tagName());
+        assertEquals("<html><head></head><body></body></html>", TextUtil.stripNewlines(doc.html()));
+    }
+
+    @Test public void accessorsAreCaseInsensitive() {
+        Parser parser = Parser.htmlParser().settings(ParseSettings.preserveCase);
+        Document doc = parser.parseInput("<!DOCTYPE html><HTML><HEAD><TITLE>SHOUTY</TITLE></HEAD><BODY>HELLO</BODY></HTML>", "");
+
+        Element body = doc.body();
+        assertEquals("BODY", body.tagName());
+        assertEquals("body", body.normalName());
+        Element head = doc.head();
+        assertEquals("HEAD", head.tagName());
+        assertEquals("body", body.normalName());
+
+        Element root = doc.selectFirst("html");
+        assertEquals("HTML", root.tagName());
+        assertEquals("html", root.normalName());
+        assertEquals("SHOUTY", doc.title());
     }
 
     @Test public void testClone() {
@@ -148,17 +178,21 @@ public class DocumentTest {
     	assertEquals(htmlContent, document.html(new StringWriter()).toString());
     }
 
-    // Ignored since this test can take awhile to run.
-    @Disabled
     @Test public void testOverflowClone() {
-        StringBuilder builder = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<head><base href='https://jsoup.org/'>");
         for (int i = 0; i < 100000; i++) {
-            builder.insert(0, "<i>");
-            builder.append("</i>");
+            sb.append("<div>");
         }
+        sb.append("<p>Hello <a href='/example.html'>there</a>");
 
-        Document doc = Jsoup.parse(builder.toString());
-        doc.clone();
+        Document doc = Jsoup.parse(sb.toString());
+
+        String expectedLink = "https://jsoup.org/example.html";
+        assertEquals(expectedLink, doc.selectFirst("a").attr("abs:href"));
+        Document clone = doc.clone();
+        doc.hasSameValue(clone);
+        assertEquals(expectedLink, clone.selectFirst("a").attr("abs:href"));
     }
 
     @Test public void DocumentsWithSameContentAreEqual() {
@@ -454,5 +488,37 @@ public class DocumentTest {
         DocumentType documentType = doc.documentType();
         assertNotNull(documentType);
         assertEquals("html", documentType.name());
+    }
+
+    @Test public void framesetSupportsBodyMethod() {
+        String html = "<html><head><title>Frame Test</title></head><frameset id=id><frame src=foo.html></frameset>";
+        Document doc = Jsoup.parse(html);
+        Element head = doc.head();
+        assertNotNull(head);
+        assertEquals("Frame Test", doc.title());
+
+        // Frameset docs per html5 spec have no body element - but instead a frameset elelemt
+        assertNull(doc.selectFirst("body"));
+        Element frameset = doc.selectFirst("frameset");
+        assertNotNull(frameset);
+
+        // the body() method returns body or frameset and does not otherwise modify the document
+        // doing it in body() vs parse keeps the html close to original for round-trip option
+        Element body = doc.body();
+        assertNotNull(body);
+        assertSame(frameset, body);
+        assertEquals("frame", body.child(0).tagName());
+
+        assertNull(doc.selectFirst("body")); // did not vivify a body element
+
+        String expected = "<html>\n" +
+            " <head>\n" +
+            "  <title>Frame Test</title>\n" +
+            " </head>\n" +
+            " <frameset id=\"id\">\n" +
+            "  <frame src=\"foo.html\">\n" +
+            " </frameset>\n" +
+            "</html>";
+        assertEquals(expected, doc.html());
     }
 }

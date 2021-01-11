@@ -24,7 +24,7 @@ public class StringUtilTest {
         assertEquals(" ", StringUtil.padding(1));
         assertEquals("  ", StringUtil.padding(2));
         assertEquals("               ", StringUtil.padding(15));
-        assertEquals("                                             ", StringUtil.padding(45));
+        assertEquals("                              ", StringUtil.padding(45)); // we tap out at 30
     }
 
     @Test public void paddingInACan() {
@@ -99,5 +99,15 @@ public class StringUtilTest {
         assertEquals("ftp://example.com/one", resolve("ftp://example.com/two/", "../one"));
         assertEquals("ftp://example.com/one/two.c", resolve("ftp://example.com/one/", "./two.c"));
         assertEquals("ftp://example.com/one/two.c", resolve("ftp://example.com/one/", "two.c"));
+    }
+
+    @Test
+    void isAscii() {
+        assertTrue(StringUtil.isAscii(""));
+        assertTrue(StringUtil.isAscii("example.com"));
+        assertTrue(StringUtil.isAscii("One Two"));
+        assertFalse(StringUtil.isAscii("🧔"));
+        assertFalse(StringUtil.isAscii("测试"));
+        assertFalse(StringUtil.isAscii("测试.com"));
     }
 }

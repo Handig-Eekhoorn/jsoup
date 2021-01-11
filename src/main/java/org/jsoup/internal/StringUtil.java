@@ -17,6 +17,7 @@ public final class StringUtil {
     static final String[] padding = {"", " ", "  ", "   ", "    ", "     ", "      ", "       ", "        ",
         "         ", "          ", "           ", "            ", "             ", "              ", "               ",
         "                ", "                 ", "                  ", "                   ", "                    "};
+    private static final int maxPaddingWidth = 30; // so very deeply nested nodes don't get insane padding amounts
 
     /**
      * Join a collection of strings by a separator
@@ -61,7 +62,7 @@ public final class StringUtil {
     }
 
     /**
-     * Returns space padding
+     * Returns space padding (up to a max of 30).
      * @param width amount of padding desired
      * @return string of spaces * width
      */
@@ -71,6 +72,7 @@ public final class StringUtil {
 
         if (width < padding.length)
             return padding[width];
+        width = Math.min(width, maxPaddingWidth);
         char[] out = new char[width];
         for (int i = 0; i < width; i++)
             out[i] = ' ';
@@ -190,6 +192,22 @@ public final class StringUtil {
     }
 
     /**
+     Tests that a String contains only ASCII characters.
+     @param string scanned string
+     @return true if all characters are in range 0 - 127
+     */
+    public static boolean isAscii(String string) {
+        Validate.notNull(string);
+        for (int i = 0; i < string.length(); i++) {
+            int c = string.charAt(i);
+            if (c > 127) { // ascii range
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Create a new absolute URL, from a provided existing absolute URL and a relative URL component.
      * @param base the existing absolute base URL
      * @param relUrl the relative URL to resolve. (If it's already absolute, it will be returned)
@@ -229,7 +247,12 @@ public final class StringUtil {
         }
     }
 
-    private static final Stack<StringBuilder> builders = new Stack<>();
+    private static final ThreadLocal<Stack<StringBuilder>> threadLocalBuilders = new ThreadLocal<Stack<StringBuilder>>() {
+        @Override
+        protected Stack<StringBuilder> initialValue() {
+            return new Stack<>();
+        }
+    };
 
     /**
      * Maintains cached StringBuilders in a flyweight pattern, to minimize new StringBuilder GCs. The StringBuilder is
@@ -239,11 +262,10 @@ public final class StringUtil {
      * @return an empty StringBuilder
      */
     public static StringBuilder borrowBuilder() {
-        synchronized (builders) {
-            return builders.empty() ?
-                new StringBuilder(MaxCachedBuilderSize) :
-                builders.pop();
-        }
+        Stack<StringBuilder> builders = threadLocalBuilders.get();
+        return builders.empty() ?
+            new StringBuilder(MaxCachedBuilderSize) :
+            builders.pop();
     }
 
     /**
@@ -261,12 +283,11 @@ public final class StringUtil {
         else
             sb.delete(0, sb.length()); // make sure it's emptied on release
 
-        synchronized (builders) {
-            builders.push(sb);
+        Stack<StringBuilder> builders = threadLocalBuilders.get();
+        builders.push(sb);
 
-            while (builders.size() > MaxIdleBuilders) {
-                builders.pop();
-            }
+        while (builders.size() > MaxIdleBuilders) {
+            builders.pop();
         }
         return string;
     }

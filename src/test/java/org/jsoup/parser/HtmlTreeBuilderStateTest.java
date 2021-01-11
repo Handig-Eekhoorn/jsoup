@@ -13,12 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class HtmlTreeBuilderStateTest {
-    static List<Object[]> findArrays() {
+    static List<Object[]> findConstantArrays(Class aClass) {
         ArrayList<Object[]> array = new ArrayList<>();
-        Field[] fields = Constants.class.getDeclaredFields();
+        Field[] fields = aClass.getDeclaredFields();
 
         for (Field field : fields) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getType().isArray()) {
+            int modifiers = field.getModifiers();
+            if (Modifier.isStatic(modifiers) && !Modifier.isPrivate(modifiers) && field.getType().isArray()) {
                 try {
                     array.add((Object[]) field.get(null));
                 } catch (IllegalAccessException e) {
@@ -40,7 +41,7 @@ public class HtmlTreeBuilderStateTest {
 
     @Test
     public void ensureArraysAreSorted() {
-        List<Object[]> constants = findArrays();
+        List<Object[]> constants = findConstantArrays(Constants.class);
         ensureSorted(constants);
         assertEquals(38, constants.size());
     }

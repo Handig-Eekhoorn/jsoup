@@ -39,7 +39,7 @@ public abstract class Evaluator {
      * Evaluator for tag name
      */
     public static final class Tag extends Evaluator {
-        private String tagName;
+        private final String tagName;
 
         public Tag(String tagName) {
             this.tagName = tagName;
@@ -61,7 +61,7 @@ public abstract class Evaluator {
      * Evaluator for tag name that ends with
      */
     public static final class TagEndsWith extends Evaluator {
-        private String tagName;
+        private final String tagName;
 
         public TagEndsWith(String tagName) {
             this.tagName = tagName;
@@ -129,7 +129,7 @@ public abstract class Evaluator {
      * Evaluator for element id
      */
     public static final class Id extends Evaluator {
-        private String id;
+        private final String id;
 
         public Id(String id) {
             this.id = id;
@@ -151,7 +151,7 @@ public abstract class Evaluator {
      * Evaluator for element class
      */
     public static final class Class extends Evaluator {
-        private String className;
+        private final String className;
 
         public Class(String className) {
             this.className = className;
@@ -173,7 +173,7 @@ public abstract class Evaluator {
      * Evaluator for attribute name matching
      */
     public static final class Attribute extends Evaluator {
-        private String key;
+        private final String key;
 
         public Attribute(String key) {
             this.key = key;
@@ -195,7 +195,7 @@ public abstract class Evaluator {
      * Evaluator for attribute name prefix matching
      */
     public static final class AttributeStarting extends Evaluator {
-        private String keyPrefix;
+        private final String keyPrefix;
 
         public AttributeStarting(String keyPrefix) {
             Validate.notEmpty(keyPrefix);
@@ -551,6 +551,8 @@ public abstract class Evaluator {
 
         @Override
         protected int calculatePosition(Element root, Element element) {
+    	    if (element.parent() == null)
+    	        return 0;
         	return element.parent().children().size() - element.elementSiblingIndex();
         }
 
@@ -571,6 +573,8 @@ public abstract class Evaluator {
 
 		protected int calculatePosition(Element root, Element element) {
 			int pos = 0;
+            if (element.parent() == null)
+                return 0;
         	Elements family = element.parent().children();
             for (Element el : family) {
                 if (el.tag().equals(element.tag())) pos++;
@@ -594,6 +598,8 @@ public abstract class Evaluator {
 		@Override
 		protected int calculatePosition(Element root, Element element) {
 			int pos = 0;
+            if (element.parent() == null)
+                return 0;
         	Elements family = element.parent().children();
         	for (int i = element.elementSiblingIndex(); i < family.size(); i++) {
         		if (family.get(i).tag().equals(element.tag())) pos++;
@@ -703,7 +709,7 @@ public abstract class Evaluator {
      * Evaluator for matching Element (and its descendants) text
      */
     public static final class ContainsText extends Evaluator {
-        private String searchText;
+        private final String searchText;
 
         public ContainsText(String searchText) {
             this.searchText = lowerCase(searchText);
@@ -724,7 +730,7 @@ public abstract class Evaluator {
      * Evaluator for matching Element (and its descendants) data
      */
     public static final class ContainsData extends Evaluator {
-        private String searchText;
+        private final String searchText;
 
         public ContainsData(String searchText) {
             this.searchText = lowerCase(searchText);
@@ -745,7 +751,7 @@ public abstract class Evaluator {
      * Evaluator for matching Element's own text
      */
     public static final class ContainsOwnText extends Evaluator {
-        private String searchText;
+        private final String searchText;
 
         public ContainsOwnText(String searchText) {
             this.searchText = lowerCase(searchText);
@@ -766,7 +772,7 @@ public abstract class Evaluator {
      * Evaluator for matching Element (and its descendants) text with regex
      */
     public static final class Matches extends Evaluator {
-        private Pattern pattern;
+        private final Pattern pattern;
 
         public Matches(Pattern pattern) {
             this.pattern = pattern;
@@ -788,7 +794,7 @@ public abstract class Evaluator {
      * Evaluator for matching Element's own text with regex
      */
     public static final class MatchesOwn extends Evaluator {
-        private Pattern pattern;
+        private final Pattern pattern;
 
         public MatchesOwn(Pattern pattern) {
             this.pattern = pattern;

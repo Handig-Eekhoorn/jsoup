@@ -12,6 +12,8 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -23,7 +25,7 @@ import static org.jsoup.internal.StringUtil.inSorted;
  * HTML Tree Builder; creates a DOM from Tokens.
  */
 public class HtmlTreeBuilder extends TreeBuilder {
-    // tag searches. must be sorted, used in inSorted. MUST update HtmlTreeBuilderTest if more arrays are added.
+    // tag searches. must be sorted, used in inSorted. HtmlTreeBuilderTest validates they're sorted.
     static final String[] TagsSearchInScope = new String[]{"applet", "caption", "html", "marquee", "object", "table", "td", "th"};
     static final String[] TagSearchList = new String[]{"ol", "ul"};
     static final String[] TagSearchButton = new String[]{"button"};
@@ -60,7 +62,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
         return ParseSettings.htmlDefault;
     }
 
-    @Override
+    @Override @ParametersAreNonnullByDefault
     protected void initialiseParse(Reader input, String baseUri, Parser parser) {
         super.initialiseParse(input, baseUri, parser);
 
@@ -79,7 +81,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
         fragmentParsing = false;
     }
 
-    List<Node> parseFragment(String inputFragment, Element context, String baseUri, Parser parser) {
+    List<Node> parseFragment(String inputFragment, @Nullable Element context, String baseUri, Parser parser) {
         // context may be null
         state = HtmlTreeBuilderState.Initial;
         initialiseParse(new StringReader(inputFragment), baseUri, parser);
@@ -106,7 +108,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
             else
                 tokeniser.transition(TokeniserState.Data); // default
 
-            root = new Element(Tag.valueOf("html", settings), baseUri);
+            root = new Element(Tag.valueOf(contextTag, settings), baseUri);
             doc.appendChild(root);
             stack.add(root);
             resetInsertionMode();
@@ -124,8 +126,14 @@ public class HtmlTreeBuilder extends TreeBuilder {
         }
 
         runParser();
-        if (context != null)
+        if (context != null) {
+            // depending on context and the input html, content may have been added outside of the root el
+            // e.g. context=p, input=div, the div will have been pushed out.
+            List<Node> nodes = root.siblingNodes();
+            if (!nodes.isEmpty())
+                root.insertChildren(-1, nodes);
             return root.childNodes();
+        }
         else
             return doc.childNodes();
     }
@@ -196,7 +204,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
 
     Element insert(final Token.StartTag startTag) {
         // cleanup duplicate attributes:
-        if (startTag.attributes != null && !startTag.attributes.isEmpty()) {
+        if (startTag.hasAttributes() && !startTag.attributes.isEmpty()) {
             int dupes = startTag.attributes.deduplicate(settings);
             if (dupes > 0) {
                 error("Duplicate attribute");
@@ -269,7 +277,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
 
         if (characterToken.isCData())
             node = new CDataNode(data);
-        else if (tagName.equals("script") || tagName.equals("style"))
+        else if (isContentForTagData(tagName))
             node = new DataNode(data);
         else
             node = new TextNode(data);
@@ -740,5 +748,9 @@ public class HtmlTreeBuilder extends TreeBuilder {
                 ", state=" + state +
                 ", currentElement=" + currentElement() +
                 '}';
+    }
+
+    protected boolean isContentForTagData(final String normalName) {
+        return (normalName.equals("script") || normalName.equals("style"));
     }
 }

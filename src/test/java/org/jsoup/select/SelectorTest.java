@@ -843,6 +843,12 @@ public class SelectorTest {
         assertEquals("Two", doc.select("p:matchText + br + *").text());
     }
 
+    @Test public void nthLastChildWithNoParent() {
+        Element el = new Element("p").text("Orphan");
+        Elements els = el.select("p:nth-last-child(1)");
+        assertEquals(0, els.size());
+    }
+
     @Test public void splitOnBr() {
         String html = "<div><p>One<br>Two<br>Three</p></div>";
         Document doc = Jsoup.parse(html);
@@ -865,6 +871,7 @@ public class SelectorTest {
     @Test public void findBetweenSpan() {
         Document doc = Jsoup.parse("<p><span>One</span> Two <span>Three</span>");
         Elements els = doc.select("span ~ p:matchText"); // the Two becomes its own p, sibling of the span
+        // todo - think this should really be 'p:matchText span ~ p'. The :matchText should behave as a modifier to expand the nodes.
 
         assertEquals(1, els.size());
         assertEquals("Two", els.text());
@@ -972,5 +979,21 @@ public class SelectorTest {
         assertEquals("2", inner.id());
         assertEquals(outer, span);
         assertNotEquals(outer, inner);
+    }
+
+    @Test
+    public void selectFirstLevelChildrenOnly() {
+        // testcase for https://github.com/jhy/jsoup/issues/984
+        String html = "<div><span>One <span>Two</span></span> <span>Three <span>Four</span></span>";
+        Document doc = Jsoup.parse(html);
+
+        Element div = doc.selectFirst("div");
+        assertNotNull(div);
+
+        // want to select One and Three only - the first level children
+        Elements spans = div.select(":root > span");
+        assertEquals(2, spans.size());
+        assertEquals("One Two", spans.get(0).text());
+        assertEquals("Three Four", spans.get(1).text());
     }
 }

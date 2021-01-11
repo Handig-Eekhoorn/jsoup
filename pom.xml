@@ -31,6 +31,10 @@
     <url>https://jhy.io/</url>
   </organization>
 
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
   <build>
     <plugins>
       <plugin>
@@ -50,7 +54,7 @@
         </configuration>
       </plugin>
       <plugin>
-        <!-- this plugin allows us to ensure Java 8 API compatibility -->
+        <!-- Ensure Java 8 and Android 10 API compatibility -->
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
         <version>1.16</version>
@@ -145,6 +149,7 @@
         <configuration>
           <instructions>
             <Bundle-DocURL>https://jsoup.org/</Bundle-DocURL>
+            <Export-Package>org.jsoup.*</Export-Package>
           </instructions>
         </configuration>
       </plugin>
@@ -177,6 +182,37 @@
           <parallel>methods</parallel>
           <threadCount>8</threadCount>
         </configuration>
+      </plugin>
+      <plugin>
+        <!-- API version compat check - https://siom79.github.io/japicmp/ -->
+        <groupId>com.github.siom79.japicmp</groupId>
+        <artifactId>japicmp-maven-plugin</artifactId>
+        <version>0.15.2</version>
+        <configuration>
+          <!-- hard code previous version; can't detect when running stateless on build server -->
+          <oldVersion>
+            <dependency>
+              <groupId>org.jsoup</groupId>
+              <artifactId>jsoup</artifactId>
+              <version>1.13.1</version>
+              <type>jar</type>
+            </dependency>
+          </oldVersion>
+          <parameter>
+            <!-- jsoup policy is ok to remove deprecated methods on minor but not builds. will need to temp remove on bump to 1.15.1 and manually validate -->
+            <onlyModified>false</onlyModified>
+            <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+            <breakBuildOnSourceIncompatibleModifications>true</breakBuildOnSourceIncompatibleModifications>
+          </parameter>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>cmp</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
     <resources>
@@ -276,17 +312,24 @@
       <!-- jetty for webserver integration tests. 9.2 is last with Java7 support -->
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>9.4.26.v20200117</version>
+      <version>9.4.35.v20201120</version>
       <scope>test</scope>
     </dependency>
-
 
     <dependency>
       <!-- jetty for webserver integration tests -->
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-servlet</artifactId>
-      <version>9.4.26.v20200117</version>
+      <version>9.4.35.v20201120</version>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <!-- javax.annotations.nonnull, with Apache 2 (not GPL) license. Build time only. -->
+      <groupId>com.google.code.findbugs</groupId>
+      <artifactId>jsr305</artifactId>
+      <version>3.0.2</version>
+      <scope>provided</scope>
     </dependency>
 
   </dependencies>
@@ -295,10 +338,6 @@
     <dependencies>
     </dependencies>
   </dependencyManagement>
-
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  </properties>
 
   <developers>
     <developer>

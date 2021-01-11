@@ -5,7 +5,7 @@ import org.jsoup.TextUtil;
 import org.jsoup.integration.ParseTest;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.*;
-import org.jsoup.safety.Whitelist;
+import org.jsoup.safety.Safelist;
 import org.jsoup.select.Elements;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -434,6 +434,22 @@ public class HtmlParserTest {
         assertEquals("http://example.com/foo", doc.select("a").first().absUrl("href"));
     }
 
+    @Test public void parseBodyIsIndexNoAttributes() {
+        // https://github.com/jhy/jsoup/issues/1404
+        String expectedHtml = "<form>\n" +
+            " <hr><label>This is a searchable index. Enter search keywords: <input name=\"isindex\"></label>\n" +
+            " <hr>\n" +
+            "</form>";
+        Document doc = Jsoup.parse("<isindex>");
+        assertEquals(expectedHtml, doc.body().html());
+
+        doc = Jsoup.parseBodyFragment("<isindex>");
+        assertEquals(expectedHtml, doc.body().html());
+
+        doc = Jsoup.parseBodyFragment("<table><input></table>");
+        assertEquals("<input>\n<table></table>", doc.body().html());
+    }
+
     @Test public void handlesUnknownNamespaceTags() {
         // note that the first foo:bar should not really be allowed to be self closing, if parsed in html mode.
         String h = "<foo:bar id='1' /><abc:def id=2>Foo<p>Hello</p></abc:def><foo:bar>There</foo:bar>";
@@ -597,6 +613,15 @@ public class HtmlParserTest {
         // jsoup used to allow, but against spec if parsing with noscript
         Document doc = Jsoup.parse("<html><head><noscript><img src='foo'></noscript></head><body><p>Hello</p></body></html>");
         assertEquals("<html><head><noscript>&lt;img src=\"foo\"&gt;</noscript></head><body><p>Hello</p></body></html>", TextUtil.stripNewlines(doc.html()));
+    }
+
+    @Test public void testUnclosedNoscriptInHead() {
+        // Was getting "EOF" in html output, because the #anythingElse handler was calling an undefined toString, so used object.toString.
+        String[] strings = {"<noscript>", "<noscript>One"};
+        for (String html : strings) {
+            Document doc = Jsoup.parse(html);
+            assertEquals(html + "</noscript>", TextUtil.stripNewlines(doc.head().html()));
+        }
     }
 
     @Test public void testAFlowContents() {
@@ -1142,8 +1167,8 @@ public class HtmlParserTest {
         parser.parseInput(html, "");
         assertEquals(0, parser.getErrors().size());
 
-        assertTrue(Jsoup.isValid(html, Whitelist.basic()));
-        String clean = Jsoup.clean(html, Whitelist.basic());
+        assertTrue(Jsoup.isValid(html, Safelist.basic()));
+        String clean = Jsoup.clean(html, Safelist.basic());
         assertEquals("<p>test<br>test<br></p>", clean);
     }
 
@@ -1154,8 +1179,8 @@ public class HtmlParserTest {
         assertEquals(1, parser.getErrors().size());
         assertEquals("18: Tag cannot be self closing; not a void tag", parser.getErrors().get(0).toString());
 
-        assertFalse(Jsoup.isValid(html, Whitelist.relaxed()));
-        String clean = Jsoup.clean(html, Whitelist.relaxed());
+        assertFalse(Jsoup.isValid(html, Safelist.relaxed()));
+        String clean = Jsoup.clean(html, Safelist.relaxed());
         assertEquals("<p>test</p> <div></div> <div> Two </div>", StringUtil.normaliseWhitespace(clean));
     }
 
@@ -1278,7 +1303,7 @@ public class HtmlParserTest {
     public void testH20() {
         // https://github.com/jhy/jsoup/issues/731
         String html = "H<sub>2</sub>O";
-        String clean = Jsoup.clean(html, Whitelist.basic());
+        String clean = Jsoup.clean(html, Safelist.basic());
         assertEquals("H<sub>2</sub>O", clean);
 
         Document doc = Jsoup.parse(html);
@@ -1289,7 +1314,7 @@ public class HtmlParserTest {
     public void testUNewlines() {
         // https://github.com/jhy/jsoup/issues/851
         String html = "t<u>es</u>t <b>on</b> <i>f</i><u>ir</u>e";
-        String clean = Jsoup.clean(html, Whitelist.basic());
+        String clean = Jsoup.clean(html, Safelist.basic());
         assertEquals("t<u>es</u>t <b>on</b> <i>f</i><u>ir</u>e", clean);
 
         Document doc = Jsoup.parse(html);
@@ -1361,5 +1386,42 @@ public class HtmlParserTest {
         Document doc = Jsoup.parse(html);
         doc.outputSettings().prettyPrint(false);
         assertEquals("<html><head></head><body>One  <p>Hello!</p><p>There</p></body></html> ", doc.outerHtml());
+    }
+
+    @Test public void preservesTabs() {
+        // testcase to demonstrate tab retention - https://github.com/jhy/jsoup/issues/1240
+        String html = "<pre>One\tTwo</pre><span>\tThree\tFour</span>";
+        Document doc = Jsoup.parse(html);
+
+        Element pre = doc.selectFirst("pre");
+        Element span = doc.selectFirst("span");
+
+        assertEquals("One\tTwo", pre.text());
+        assertEquals("Three Four", span.text()); // normalized, including overall trim
+        assertEquals("\tThree\tFour", span.wholeText()); // text normalizes, wholeText retains original spaces incl tabs
+        assertEquals("One\tTwo Three Four", doc.body().text());
+
+        assertEquals("<pre>One\tTwo</pre><span> Three Four</span>", doc.body().html()); // html output provides normalized space, incl tab in pre but not in span
+
+        doc.outputSettings().prettyPrint(false);
+        assertEquals(html, doc.body().html()); // disabling pretty-printing - round-trips the tab throughout, as no normalization occurs
+    }
+
+    @Test public void canDetectAutomaticallyAddedElements() {
+        String bare = "<script>One</script>";
+        String full = "<html><head><title>Check</title></head><body><p>One</p></body></html>";
+
+        assertTrue(didAddElements(bare));
+        assertFalse(didAddElements(full));
+    }
+
+    private boolean didAddElements(String input) {
+        // two passes, one as XML and one as HTML. XML does not vivify missing/optional tags
+        Document html = Jsoup.parse(input);
+        Document xml = Jsoup.parse(input, "", Parser.xmlParser());
+
+        int htmlElementCount = html.getAllElements().size();
+        int xmlElementCount = xml.getAllElements().size();
+        return htmlElementCount > xmlElementCount;
     }
 }

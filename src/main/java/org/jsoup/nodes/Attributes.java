@@ -5,6 +5,7 @@ import org.jsoup.helper.Validate;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.parser.ParseSettings;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -32,35 +33,35 @@ import static org.jsoup.internal.Normalizer.lowerCase;
  * @author Jonathan Hedley, jonathan@hedley.net
  */
 public class Attributes implements Iterable<Attribute>, Cloneable {
+    // The Attributes object is only created on the first use of an attribute; the Element will just have a null
+    // Attribute slot otherwise
     protected static final String dataPrefix = "data-";
     // Indicates a jsoup internal key. Can't be set via HTML. (It could be set via accessor, but not too worried about
     // that. Suppressed from list, iter.
     static final char InternalPrefix = '/';
-    private static final int InitialCapacity = 2; // sampling found mean count when attrs present = 1.49; 1.08 overall. 2.6:1 have attrs.
+    private static final int InitialCapacity = 3; // sampling found mean count when attrs present = 1.49; 1.08 overall. 2.6:1 don't have any attrs.
 
     // manages the key/val arrays
     private static final int GrowthFactor = 2;
-    private static final String[] Empty = {};
     static final int NotFound = -1;
     private static final String EmptyString = "";
 
-    private int size = 0; // number of slots used (not capacity, which is keys.length
-    String[] keys = Empty;
-    String[] vals = Empty;
+    private int size = 0; // number of slots used (not total capacity, which is keys.length)
+    String[] keys = new String[InitialCapacity];
+    String[] vals = new String[InitialCapacity];
 
     // check there's room for more
     private void checkCapacity(int minNewSize) {
         Validate.isTrue(minNewSize >= size);
-        int curSize = keys.length;
-        if (curSize >= minNewSize)
+        int curCap = keys.length;
+        if (curCap >= minNewSize)
             return;
+        int newCap = curCap >= InitialCapacity ? size * GrowthFactor : InitialCapacity;
+        if (minNewSize > newCap)
+            newCap = minNewSize;
 
-        int newSize = curSize >= InitialCapacity ? size * GrowthFactor : InitialCapacity;
-        if (minNewSize > newSize)
-            newSize = minNewSize;
-
-        keys = Arrays.copyOf(keys, newSize);
-        vals = Arrays.copyOf(vals, newSize);
+        keys = Arrays.copyOf(keys, newCap);
+        vals = Arrays.copyOf(vals, newCap);
     }
 
     int indexOfKey(String key) {
@@ -82,7 +83,7 @@ public class Attributes implements Iterable<Attribute>, Cloneable {
     }
 
     // we track boolean attributes as null in values - they're just keys. so returns empty for consumers
-    static String checkNotNull(String val) {
+    static String checkNotNull(@Nullable String val) {
         return val == null ? EmptyString : val;
     }
 
@@ -111,7 +112,7 @@ public class Attributes implements Iterable<Attribute>, Cloneable {
      * Adds a new attribute. Will produce duplicates if the key already exists.
      * @see Attributes#put(String, String)
      */
-    public Attributes add(String key, String value) {
+    public Attributes add(String key, @Nullable String value) {
         checkCapacity(size + 1);
         keys[size] = key;
         vals[size] = value;
@@ -135,7 +136,7 @@ public class Attributes implements Iterable<Attribute>, Cloneable {
         return this;
     }
 
-    void putIgnoreCase(String key, String value) {
+    void putIgnoreCase(String key, @Nullable String value) {
         int i = indexOfKeyIgnoreCase(key);
         if (i != NotFound) {
             vals[i] = value;
@@ -173,6 +174,7 @@ public class Attributes implements Iterable<Attribute>, Cloneable {
     }
 
     // removes and shifts up
+    @SuppressWarnings("AssignmentToNull")
     private void remove(int index) {
         Validate.isFalse(index >= size);
         int shifted = size - index - 1;
